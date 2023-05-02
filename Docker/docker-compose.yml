@@ -1,4 +1,4 @@
-version: '3'
+version: '3.9'
 
 services:
 
@@ -10,11 +10,11 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - TZ=Europe/Moscow
-    #    healthcheck:
-    #      test: [ "CMD-SHELL", "sh -c 'pg_isready -U postgres -d dataService'" ]
-    #      interval: 10s
-    #      timeout: 3s
-    #      retries: 3
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready -U postgres -d dataService'" ]
+      interval: 15s
+      timeout: 3s
+      retries: 3
     ports:
       - "5432:5432"
 
@@ -23,7 +23,8 @@ services:
     container_name: data-service
     image: ivandvurechenskiy/data-service:latest
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/dataService
       - SPRING_DATASOURCE_USERNAME=postgres
@@ -37,8 +38,10 @@ services:
     container_name: sender-service
     image: ilyakorobko/new-sender-service:latest
     depends_on:
-      - kafka
-      - send-manager
+      kafka:
+        condition: service_healthy
+      send-manager:
+        condition: service_started
     environment:
       TZ: Europe/Moscow
       SPRING_KAFKA_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
@@ -47,12 +50,16 @@ services:
     container_name: send-manager
     image: ivandvurechenskiy/new-send-manager:latest
     depends_on:
-      - kafka
-      - data-service
+      kafka:
+        condition: service_healthy
+      data-service:
+        condition: service_started
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
       rest_address: http://data-service:8080/order
+      rest_callback_address: http://data-service:8080/schedule
       TZ: Europe/Moscow
+
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     environment:
@@ -65,6 +72,12 @@ services:
     image: confluentinc/cp-kafka:latest
     depends_on:
       - zookeeper
+    healthcheck:
+      test: nc -z localhost 9092 || exit -1
+      start_period: 40s
+      interval: 5s
+      timeout: 10s
+      retries: 10
     ports:
       - "9092:9092"
     environment:
@@ -75,3 +88,11 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ivan5656@list.ru
+      PGADMIN_DEFAULT_PASSWORD: postgres
+    ports:
+      - "80:80"
