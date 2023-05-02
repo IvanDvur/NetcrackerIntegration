@@ -35,22 +35,24 @@ services:
 
   sender-service:
     container_name: sender-service
-    image: sotlint/sender-service:latest
+    image: ilyakorobko/new-sender-service:latest
     depends_on:
       - kafka
       - send-manager
     environment:
-      KAFKA_SERVER: kafka:29092
+      TZ: Europe/Moscow
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
 
   send-manager:
     container_name: send-manager
-    image: alexey126126/send-manager:latest
+    image: ivandvurechenskiy/new-send-manager:latest
     depends_on:
       - kafka
       - data-service
     environment:
-      KAFKA_SERVER: kafka:29092
-
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+      rest_address: http://data-service:8080/order
+      TZ: Europe/Moscow
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     environment:
@@ -64,7 +66,7 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - "29092:29092"
+      - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
