@@ -36,7 +36,7 @@ services:
 
   sender-service:
     container_name: sender-service
-    image: ilyakorobko/new-sender-service:latest
+    image: someimage:latest
     depends_on:
       kafka:
         condition: service_healthy
@@ -48,7 +48,7 @@ services:
 
   send-manager:
     container_name: send-manager
-    image: ivandvurechenskiy/new-send-manager:latest
+    image: someimage:latest
     depends_on:
       kafka:
         condition: service_healthy
