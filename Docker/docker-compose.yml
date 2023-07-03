@@ -16,7 +16,7 @@ services:
       timeout: 3s
       retries: 3
     ports:
-      - "5432:5432"
+      - "5438:5432"
 
   data-service:
     restart: on-failure
@@ -29,14 +29,14 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/dataService
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=postgres
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=create-drop
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - TZ=Europe/Moscow
     ports:
       - "8080:8080"
 
   sender-service:
     container_name: sender-service
-    image: someimage:latest
+    image: ivandvurechenskiy/new-sender-service:latest
     depends_on:
       kafka:
         condition: service_healthy
@@ -45,10 +45,19 @@ services:
     environment:
       TZ: Europe/Moscow
       SPRING_KAFKA_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+      rest_callback_generic_address: http://data-service:8080/schedule
+      spring_mail_properties_mail_smtp_host: smtp.gmail.com
+      spring_mail_properties_mail_smtp_ssl_enable: true
+      spring_mail_properties_mail_smtp_auth: true
+      spring_mail_properties_mail_smtp_port: 465
+#      spring_mail_properties_mail_smtp_starttls_enable: true
+#      spring_mail_properties_mail_smtp_starttls_required: true
+      mail_user: ivandvurechenskiy26@gmail.com
+      mail_password: kyykrjmmujjqqvsv
 
   send-manager:
     container_name: send-manager
-    image: someimage:latest
+    image: ivandvurechenskiy/new-send-manager:latest
     depends_on:
       kafka:
         condition: service_healthy
@@ -58,20 +67,38 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
       rest_address: http://data-service:8080/order
       rest_callback_address: http://data-service:8080/schedule
+      rest_retry_address: http://data-service:8080/failedOrder
+      rest_expired_address: http://data-service:8080/expired
+      rest_callback_generic_address: http://data-service:8080/schedule
+      service_medium_load: 10
+      service_high_load: 20
       TZ: Europe/Moscow
+
+  client:
+    container_name: netckacker-frontend
+    image: ivandvurechenskiy/netckacker-frontend
+    ports:
+      - "4200:4200"
 
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: nc -z localhost 2181 || exit -1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     ports:
       - "22181:2181"
 
   kafka:
     image: confluentinc/cp-kafka:latest
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     healthcheck:
       test: nc -z localhost 9092 || exit -1
       start_period: 40s
@@ -88,11 +115,3 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
-  pgadmin:
-    container_name: pgadmin
-    image: dpage/pgadmin4:latest
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ivan5656@list.ru
-      PGADMIN_DEFAULT_PASSWORD: postgres
-    ports:
-      - "80:80"
